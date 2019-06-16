@@ -1,6 +1,6 @@
 import numpy as np
 import keras.backend as K
-
+import tensorflow as tf
 
 def dice(y_true, y_pred):
     #computes the dice score on two tensors
