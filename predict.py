@@ -60,13 +60,15 @@ class Prediction(object):
             verbose=0
         # predict classes of each pixel based on the model
         prediction = self.model.predict(test_image,batch_size=self.batch_size_test,verbose=verbose)   
+        
+        prediction_not_reshaped = prediction.copy()
         prediction = np.argmax(prediction, axis=-1)
         prediction=prediction.astype(np.uint8)
         #reconstruct the initial target values .i.e. 0,1,2,4 for prediction and ground truth
         prediction[prediction==3]=4
         gt[gt==3]=4
         
-        return np.array(prediction),np.array(gt)
+        return np.array(prediction),np.array(gt),np.array(prediction_not_reshaped)
 
 
 
