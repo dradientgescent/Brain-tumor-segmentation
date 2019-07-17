@@ -52,7 +52,7 @@ class Pipeline(object):
 
             train_im.append(tmp)
             del tmp    
-            print(np.array(train_im).shape)
+            #print(np.array(train_im).shape)
         return  np.array(train_im)
     
     
@@ -205,8 +205,8 @@ def concatenate ():
     del shuffle
 
 
-    np.save( "x_training",X_patches.astype(np.float32) )
-    np.save( "y_training",Y_labels.astype(np.uint8))
+    np.save( "x_training.npy",X_patches.astype(np.float32) )
+    np.save( "y_training.npy",Y_labels.astype(np.uint8))
     #np.save( "x_valid",X_patches_valid.astype(np.float32) )
     #np.save( "y_valid",Y_labels_valid.astype(np.uint8))
 
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     np.random.seed(1555)
     start=0
-    end=20
+    end=285
     #set the total number of patches
     #this formula extracts approximately 3 patches per slice
     num_patches=146*(end-start)*3
@@ -261,7 +261,7 @@ if __name__ == '__main__':
     print("Size of their correponding targets : ",Y_labels.shape)
 
     #save to disk as npy files
-    #np.save( "x_dataset_first_part",Patches )
-    #np.save( "y_dataset_first_part",Y_labels)
+    np.save( "x_dataset_first_part",Patches )
+    np.save( "y_dataset_first_part",Y_labels)
 
 
