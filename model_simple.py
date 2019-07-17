@@ -83,11 +83,6 @@ class Unet_model_simple(object):
         n=Activation('relu')(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
                 
-        n = BatchNormalization()(n) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
-        n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
-
         #n=add([m,n]) 
         
         return  n 
@@ -104,11 +99,6 @@ class Unet_model_simple(object):
         #n=  Activation(acti)(n)
         n=Activation('relu')(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
-
-        n = BatchNormalization()(n) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
-        n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
         
         #Save = Conv2D(dim, 1, padding='same',data_format = format_,use_bias=False)(m) 
         #n=add([Save,n]) 
