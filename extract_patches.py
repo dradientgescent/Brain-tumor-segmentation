@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     np.random.seed(1555)
     start=0
-    end=120
+    end=100
     #set the total number of patches
     #this formula extracts approximately 3 patches per slice
     num_patches=146*(end-start)*3
