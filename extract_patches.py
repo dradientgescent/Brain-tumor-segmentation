@@ -52,6 +52,7 @@ class Pipeline(object):
 
             train_im.append(tmp)
             del tmp    
+            print(np.array(train_im).shape)
         return  np.array(train_im)
     
     
