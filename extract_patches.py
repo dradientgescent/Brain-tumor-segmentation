@@ -213,8 +213,8 @@ def concatenate ():
 if __name__ == '__main__':
     
     #Paths for Brats2017 dataset
-    path_HGG = glob('Brats2017/Brats17TrainingData/HGG/**')
-    path_LGG = glob('Brats2017/Brats17TrainingData/LGG/**')
+    path_HGG = glob('BraTs_2018/HGG/**')
+    path_LGG = glob('Brats_2018/LGG/**')
     path_all=path_HGG+path_LGG
 
     #shuffle the dataset
