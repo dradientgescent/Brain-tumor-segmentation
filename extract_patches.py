@@ -12,13 +12,15 @@ class Pipeline(object):
         self.scans_train = list_train
         self.train_im=self.read_scans(Normalize)
 
-        
+
     def read_scans(self,Normalize):
 
         train_im=[]
         for i in range(len( self.scans_train)):
-            if i%10==0:
-                print('iteration [{}]'.format(i))
+            #if i%10==0:
+            #    print('iteration [{}]'.format(i))
+
+            #print(len(self.scans_train[i]))
 
             flair = glob( self.scans_train[i] + '/*_flair.nii.gz')
             t2 = glob( self.scans_train[i] + '/*_t2.nii.gz')
@@ -27,7 +29,7 @@ class Pipeline(object):
             t1c = glob( self.scans_train[i] + '/*_t1ce.nii.gz')
 
             t1s=[scan for scan in t1 if scan not in t1c]
-
+            #print(len(flair)+len(t2)+len(gt)+len(t1s)+len(t1c))
             if (len(flair)+len(t2)+len(gt)+len(t1s)+len(t1c))<5:
                 print("there is a problem here!!! the problem lies in this patient :", self.scans_train[i])
                 continue
@@ -43,8 +45,8 @@ class Pipeline(object):
             z1=147
             y1=221  
             x1=194  
-            tmp=np.array(tmp)
-            tmp=tmp[:,z0:z1,y0:y1,x0:x1]
+            #tmp=np.array(tmp)
+            #tmp=tmp[:,z0:z1,y0:y1,x0:x1]
 
             #normalize each slice
             if Normalize==True:
@@ -72,7 +74,8 @@ class Pipeline(object):
         count = 0
 
         #swap axes to make axis 0 represents the modality and axis 1 represents the slice. take the ground truth
-        gt_im = np.swapaxes(self.train_im, 0, 1)[4]   
+        gt_im = np.swapaxes(self.train_im, 0, 1)[4]
+        print(gt_im.shape)
 
         #take flair image as mask
         msk = np.swapaxes(self.train_im, 0, 1)[0]
@@ -135,7 +138,7 @@ class Pipeline(object):
             subtracts mean and div by std dev for each slice
             clips top and bottom one percent of pixel intensities
         '''
-        normed_slices = np.zeros(( 5,146, 192, 152)).astype(np.float32)
+        normed_slices = np.zeros(( 5, 155, 240, 240)).astype(np.float32)
         for slice_ix in range(4):
             normed_slices[slice_ix] = slice_not[slice_ix]
             for mode_ix in range(146):
@@ -179,17 +182,17 @@ def save_image_png (img,output_file="img.png"):
 '''
 
 
-    
+'''
 def concatenate ():
 
-    '''
+    
     concatenate two parts into one dataset
     this can be avoided if there is enough RAM as we can directly from the whole dataset
-    '''
+    
     Y_labels_2=np.load("y_dataset_second_part.npy").astype(np.uint8)
     X_patches_2=np.load("x_dataset_second_part.npy").astype(np.float32)
     Y_labels_1=np.load("y_dataset_first_part.npy").astype(np.uint8)
-    X_patches_1=np.load("x_dataset_first_part.npy").astype(np.float32)
+        X_patches_1=np.load("x_dataset_first_part.npy").astype(np.float32)
 
     #concatenate both parts
     X_patches=np.concatenate((X_patches_1, X_patches_2), axis=0)
@@ -209,59 +212,134 @@ def concatenate ():
     np.save( "y_training.npy",Y_labels.astype(np.uint8))
     #np.save( "x_valid",X_patches_valid.astype(np.float32) )
     #np.save( "y_valid",Y_labels_valid.astype(np.uint8))
+'''
 
+def single_extractor(val):
+
+    while True:
+
+        if val:
+            path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/val/**')
+        else:
+            path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/train/**')
+
+        index = random.randint(0, len(path_all)+1)
+
+        #print(path_all[index])
+        np.random.shuffle(path_all)
+
+        # set the total number of patches
+        # this formula extracts approximately 3 patches per slice
+        num_patches = 146 * 1 * 3
+        # define the size of a patch
+        h = 240
+        w = 240
+        d = 4
+
+        pipe = Pipeline(list_train=path_all[index:index+1], Normalize=True)
+        try:
+            '''
+            Patches, Y_labels = pipe.sample_patches_randomly(num_patches, d, h, w)
+
+            # transform the data to channels_last keras format
+            Patches = np.transpose(Patches, (0, 2, 3, 1)).astype(np.float32)
+            #print(Patches.shape)
+
+            # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets
+            # this transormation is done so that we will have 4 classes when we one-hot encode the targets
+            Y_labels[Y_labels == 4] = 3
+
+            # transform y to one_hot enconding for keras
+            shp = Y_labels.shape[0]
+            Y_labels = Y_labels.reshape(-1)
+            Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
+            Y_labels = Y_labels.reshape(shp, h, w, 4)
+
+            index_2 = random.randint(0, num_patches)
+            '''
+            index_2 = random.randint(0, 155)
+            #print(pipe.train_im.shape)
+            Patch = pipe.train_im[:, :4, index_2, :, :]
+            Y_label = pipe.train_im[:, 4, index_2, :, :]
+
+            # transform the data to channels_last keras format
+            Patch = np.transpose(Patch, (0, 2, 3, 1)).astype(np.float32)
+
+            # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets
+            # this transormation is done so that we will have 4 classes when we one-hot encode the targets
+            Y_label[Y_label == 4] = 3
+
+            # transform y to one_hot enconding for keras
+            shp = Y_label.shape[0]
+            #print(shp)
+            Y_label = Y_label.reshape(-1)
+            Y_label = np_utils.to_categorical(Y_label, num_classes=4).astype(np.uint8)
+            #print(Y_label.shape)
+            Y_label = Y_label.reshape(shp, h, w, 4)
+
+        except Exception as e:
+            print(e)
+            continue
+        break
+
+    return(Patch, Y_label)
 
 if __name__ == '__main__':
     
     #Paths for Brats2017 dataset
-    path_HGG = glob('/home/parth/Interpretable_ML/BraTS_2018/HGG/**')
-    path_LGG = glob('/home/parth/Interpretable_ML/BraTS_2018/LGG/**')
-    path_all=path_HGG+path_LGG
+    path_HGG = glob('/home/parth/Interpretable_ML/BraTS_2018/train/**')
+    #path_LGG = glob('/home/parth/Interpretable_ML/BraTS_2018/LGG/**')
+    path_all=path_HGG
 
     #shuffle the dataset
     np.random.seed(2022)
     np.random.shuffle(path_all)
-
     np.random.seed(1555)
-    start=0
-    end=20
-    #set the total number of patches
-    #this formula extracts approximately 3 patches per slice
-    num_patches=146*(end-start)*3
-    #define the size of a patch
-    h=128
-    w=128 
-    d=4 
 
-    pipe=Pipeline(list_train=path_all[start:end],Normalize=True)
-    Patches,Y_labels=pipe.sample_patches_randomly(num_patches,d, h, w)
+    index = random.randint(0, len(path_all) + 1)
 
-    #transform the data to channels_last keras format
-    Patches=np.transpose(Patches,(0,2,3,1)).astype(np.float32)
+    for i in range(30):
+        start=i*10
+        end=(i+1)*(10)
 
-    # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets 
-    # this transormation is done so that we will have 4 classes when we one-hot encode the targets
-    Y_labels[Y_labels==4]=3
+        #set the total number of patches
+        #this formula extracts approximately 3 patches per slice
+        num_patches=146*(end-start)*3
+        #define the size of a patch
+        h=128
+        w=128
+        d=4
 
-    #transform y to one_hot enconding for keras  
-    shp=Y_labels.shape[0]
-    Y_labels=Y_labels.reshape(-1)
-    Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
-    Y_labels=Y_labels.reshape(shp,h,w,4)
+        pipe=Pipeline(list_train=path_all[start:end],Normalize=True)
+        Patches,Y_labels=pipe.sample_patches_randomly(num_patches,d, h, w)
 
-    #shuffle the whole dataset
-    shuffle = list(zip(Patches, Y_labels))
-    np.random.seed(180)
-    np.random.shuffle(shuffle)
-    Patches = np.array([shuffle[i][0] for i in range(len(shuffle))])
-    Y_labels = np.array([shuffle[i][1] for i in range(len(shuffle))])
-    del shuffle
-    
-    print("Size of the patches : ",Patches.shape)
-    print("Size of their correponding targets : ",Y_labels.shape)
+        #transform the data to channels_last keras format
+        Patches=np.transpose(Patches,(0,2,3,1)).astype(np.float32)
 
-    #save to disk as npy files
-    np.save( "x_dataset_first_part.npy",Patches )
-    np.save( "y_dataset_first_part.npy",Y_labels)
+        # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets
+        # this transormation is done so that we will have 4 classes when we one-hot encode the targets
+        Y_labels[Y_labels==4]=3
+
+        #transform y to one_hot enconding for keras
+        shp=Y_labels.shape[0]
+        Y_labels=Y_labels.reshape(-1)
+        Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
+        Y_labels=Y_labels.reshape(shp,h,w,4)
+
+        #shuffle the whole dataset
+        shuffle = list(zip(Patches, Y_labels))
+        np.random.seed(180)
+        np.random.shuffle(shuffle)
+        Patches = np.array([shuffle[i][0] for i in range(len(shuffle))])
+        Y_labels = np.array([shuffle[i][1] for i in range(len(shuffle))])
+        del shuffle
+
+        print("Size of the patches : ",Patches.shape)
+        print("Size of their correponding targets : ",Y_labels.shape)
+
+        #save to disk as npy files
+        #np.save( "/media/parth/DATA/brats_as_npy/x_dataset_{}.npy".format(15),Patches )
+        #np.save( "/media/parth/DATA/brats_as_npy/y_dataset_{}.npy".format(15),Y_labels)
+
 
 

@@ -7,8 +7,17 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import  ModelCheckpoint,Callback,LearningRateScheduler
 import keras.backend as K
 from model import Unet_model
+from model_simple import Unet_model_simple
 from losses import *
 #from keras.utils.visualize_util import plot
+from extract_patches import *
+
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.9
+config.gpu_options.visible_device_list = "0"
+set_session(tf.Session(config=config))
 
 
 
@@ -29,9 +38,9 @@ class SGDLearningRateTracker(Callback):
 class Training(object):
     
 
-    def __init__(self, batch_size,nb_epoch,load_model_resume_training=None):
+    def __init__(self, nb_epoch,load_model_resume_training=None):
 
-        self.batch_size = batch_size
+        #self.batch_size = batch_size
         self.nb_epoch = nb_epoch
 
         #loading model from path to resume previous training without recompiling the whole model
@@ -39,16 +48,33 @@ class Training(object):
             self.model =load_model(load_model_resume_training,custom_objects={'gen_dice_loss': gen_dice_loss,'dice_whole_metric':dice_whole_metric,'dice_core_metric':dice_core_metric,'dice_en_metric':dice_en_metric})
             print("pre-trained model loaded!")
         else:
-            unet =Unet_model(img_shape=(128,128,4))
-            self.model=unet.model
+            #unet =Unet_model(img_shape=(128,128,4))
+            self.model=Unet_model(img_shape=(240,240,4)).model
             print("U-net CNN compiled!")
 
-                    
-    def fit_unet(self,X33_train,Y_train,X_patches_valid=None,Y_labels_valid=None):
+    def macro_batch_generator(self, val = False):
 
-        train_generator=self.img_msk_gen(X33_train,Y_train,9999)
-        checkpointer = ModelCheckpoint(filepath='brain_segmentation/ResUnet.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1)
-        self.model.fit_generator(train_generator,steps_per_epoch=len(X33_train)//self.batch_size,epochs=self.nb_epoch, validation_data=(X_patches_valid,Y_labels_valid),verbose=1, callbacks = [checkpointer,SGDLearningRateTracker()])
+        while True:
+
+            batch_x = []
+            batch_y = []
+
+            for i in range(1):
+
+                    batch_x.append(single_extractor(val)[0].reshape((240,240,4)))
+                    batch_y.append(single_extractor(val)[1].reshape((240,240,4)))
+
+            print(np.array(batch_x).shape)
+
+            yield (np.array(batch_x), np.array(batch_y))
+
+    def fit_unet(self):
+
+        #train_generator=self.img_msk_gen(X33_train,Y_train,9999)
+        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/brain-tumor-segmentation/checkpoints/ResUnet.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1)
+        self.model.fit_generator(self.macro_batch_generator(),
+                                 steps_per_epoch=50, validation_data=self.macro_batch_generator(val=True), validation_steps=10,
+                                 epochs=self.nb_epoch,verbose=1, callbacks = [checkpointer])
         #self.model.fit(X33_train,Y_train, epochs=self.nb_epoch,batch_size=self.batch_size,validation_data=(X_patches_valid,Y_labels_valid),verbose=1, callbacks = [checkpointer,SGDLearningRateTracker()])
 
     def img_msk_gen(self,X33_train,Y_train,seed):
@@ -105,21 +131,21 @@ if __name__ == "__main__":
     #save=None
 
     #compile the model
-    brain_seg = Training(batch_size=4,nb_epoch=3,load_model_resume_training=model_to_load)
+    brain_seg = Training(nb_epoch=5)
 
     print("number of trainabale parameters:",brain_seg.model.count_params())
     #print(brain_seg.model.summary())
     #plot(brain_seg.model, to_file='model_architecture.png', show_shapes=True)
 
     #load data from disk
-    Y_labels=np.load("y_training.npy").astype(np.uint8)
-    X_patches=np.load("x_training.npy").astype(np.float32)
-    Y_labels_valid=np.load("y_valid.npy").astype(np.uint8)
-    X_patches_valid=np.load("x_valid.npy").astype(np.float32)
-    print("loading patches done\n")
+    #Y=np.load("y_training.npy").astype(np.uint8)
+    #X=np.load("x_training.npy").astype(np.float32)
+    #Y_labels_valid=np.load("y_valid.npy").astype(np.uint8)
+    #X_patches_valid=np.load("x_valid.npy").astype(np.float32)
+    #print("loading patches done\n")
 
     # fit model
-    brain_seg.fit_unet(X_patches,Y_labels,X_patches_valid,Y_labels_valid)#*
+    brain_seg.fit_unet()#*
 
     #if save is not None:
     #    brain_seg.save_model('models/' + save)
