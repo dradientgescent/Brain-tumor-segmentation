@@ -75,7 +75,7 @@ class Pipeline(object):
 
         #swap axes to make axis 0 represents the modality and axis 1 represents the slice. take the ground truth
         gt_im = np.swapaxes(self.train_im, 0, 1)[4]
-        print(gt_im.shape)
+        #print(gt_im.shape)
 
         #take flair image as mask
         msk = np.swapaxes(self.train_im, 0, 1)[0]
@@ -138,7 +138,7 @@ class Pipeline(object):
             subtracts mean and div by std dev for each slice
             clips top and bottom one percent of pixel intensities
         '''
-        normed_slices = np.zeros(( 5, 155, 240, 240)).astype(np.float32)
+        normed_slices = np.zeros((5 ,155, 240, 240)).astype(np.float32)
         for slice_ix in range(4):
             normed_slices[slice_ix] = slice_not[slice_ix]
             for mode_ix in range(146):
@@ -214,11 +214,59 @@ def concatenate ():
     #np.save( "y_valid",Y_labels_valid.astype(np.uint8))
 '''
 
-def single_extractor(val):
+def whole_return(val = False):
 
     while True:
 
-        if val:
+        try:
+            if val == True:
+                path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/val/**')
+            else:
+                path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/train/**')
+
+            index = random.randint(0, len(path_all)+1)
+
+            #print(path_all[index])
+            np.random.shuffle(path_all)
+
+            pipe = Pipeline(list_train=path_all[index:index+1], Normalize=True)
+
+            #print(pipe.train_im.shape)
+            Patches = pipe.train_im[:, :4, :, :, :].reshape((155, 240, 240, 4))
+            Y_labels = pipe.train_im[:, 4, :, :, :]
+
+            #print(Patches.shape)
+
+            #Patches = np.transpose(Patches, (0, 2, 3, 1)).astype(np.float32)
+            #print(Patches.shape)
+
+            # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets
+            # this transormation is done so that we will have 4 classes when we one-hot encode the targets
+            Y_labels[Y_labels == 4] = 3
+
+            # transform y to one_hot enconding for keras
+            shp = Y_labels.shape[0]
+            Y_labels = Y_labels.reshape(-1)
+            Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
+            Y_labels = Y_labels.reshape(155, 240, 240, 4)
+
+            index_2 = random.randint(5, 150)
+
+            Patch, Y_label = Patches[index_2], Y_labels[index_2]
+
+            #print(Patch.shape)
+        except:
+            continue
+        break
+
+    return(Patch, Y_label)
+
+
+def single_extractor(val = False):
+
+    while True:
+
+        if val == True:
             path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/val/**')
         else:
             path_all = glob('/home/parth/Interpretable_ML/BraTS_2018/train/**')
@@ -232,13 +280,13 @@ def single_extractor(val):
         # this formula extracts approximately 3 patches per slice
         num_patches = 146 * 1 * 3
         # define the size of a patch
-        h = 240
-        w = 240
+        h = 128
+        w = 128
         d = 4
 
         pipe = Pipeline(list_train=path_all[index:index+1], Normalize=True)
         try:
-            '''
+
             Patches, Y_labels = pipe.sample_patches_randomly(num_patches, d, h, w)
 
             # transform the data to channels_last keras format
@@ -256,29 +304,12 @@ def single_extractor(val):
             Y_labels = Y_labels.reshape(shp, h, w, 4)
 
             index_2 = random.randint(0, num_patches)
-            '''
-            index_2 = random.randint(0, 155)
-            #print(pipe.train_im.shape)
-            Patch = pipe.train_im[:, :4, index_2, :, :]
-            Y_label = pipe.train_im[:, 4, index_2, :, :]
 
-            # transform the data to channels_last keras format
-            Patch = np.transpose(Patch, (0, 2, 3, 1)).astype(np.float32)
+            Patch, Y_label = Patches[index_2], Y_labels[index_2]
 
-            # since the brats2017 dataset has only 4 labels,namely 0,1,2 and 4 as opposed to previous datasets
-            # this transormation is done so that we will have 4 classes when we one-hot encode the targets
-            Y_label[Y_label == 4] = 3
+            #print(Patch.shape)
 
-            # transform y to one_hot enconding for keras
-            shp = Y_label.shape[0]
-            #print(shp)
-            Y_label = Y_label.reshape(-1)
-            Y_label = np_utils.to_categorical(Y_label, num_classes=4).astype(np.uint8)
-            #print(Y_label.shape)
-            Y_label = Y_label.reshape(shp, h, w, 4)
-
-        except Exception as e:
-            print(e)
+        except:
             continue
         break
 
