@@ -333,10 +333,10 @@ if __name__ == '__main__':
     print(len(path_all))
 
 
-    for i in range(1):
-
-            start=0
-            end=35
+    for i in range(len(path_all)):
+        try:
+            start=i
+            end=(i+1)
 
             #set the total number of patches
             #this formula extracts approximately 3 patches per slice
@@ -363,6 +363,12 @@ if __name__ == '__main__':
             Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
             Y_labels=Y_labels.reshape(shp,h,w,4)
 
+            for j in range(Patches.shape[0]):
+                np.save("/media/parth/DATA/brats_patches/val/patch_%d_%d.npy" %(i,j), Patches[j])
+                np.save( "/media/parth/DATA/brats_patches/val_labels/label_%d_%d.npy" %(i,j),Y_labels[j])
+                print(Patches[j].shape)
+
+            '''
             #shuffle the whole dataset
             shuffle = list(zip(Patches, Y_labels))
             np.random.seed(180)
@@ -370,13 +376,15 @@ if __name__ == '__main__':
             Patches = np.array([shuffle[i][0] for i in range(len(shuffle))])
             Y_labels = np.array([shuffle[i][1] for i in range(len(shuffle))])
             del shuffle
+            '''
 
             print("Size of the patches : ",Patches.shape)
             print("Size of their correponding targets : ",Y_labels.shape)
-
+        except:
+            pass
             #save to disk as npy files
-            np.save( "/media/parth/DATA/brats_as_npy_low_res/x_dataset_{}.npy".format(i),Patches )
-            np.save( "/media/parth/DATA/brats_as_npy_low_res/y_dataset_{}.npy".format(i),Y_labels)
+            #np.save( "/media/parth/DATA/brats_as_npy_low_res/train/x_dataset_{}.npy".format(i),Patches )
+            #np.save( "/media/parth/DATA/brats_as_npy_low_res/train/y_dataset_{}.npy".format(i),Y_labels)
 
 
 

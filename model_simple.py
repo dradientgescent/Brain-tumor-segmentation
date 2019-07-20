@@ -33,7 +33,7 @@ class Unet_model_simple(object):
         out=self.unet(inputs=i_)
         model = Model(input=i, output=out)
 
-        sgd = SGD(lr=0.08, momentum=0.9, decay=5e-6, nesterov=False)
+        sgd = SGD(lr=0.1, momentum=0.9, decay=5e-6, nesterov=False)
         model.compile(loss=categorical_crossentropy, optimizer=sgd, metrics=[dice_whole_metric,dice_core_metric,dice_en_metric])
         #load weights if set for prediction
         if self.load_model_weights is not None:
@@ -41,7 +41,7 @@ class Unet_model_simple(object):
         return model
 
 
-    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.0, batchnorm=True, upconv=True,format_='channels_last'):
+    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.2, batchnorm=True, upconv=True,format_='channels_last'):
         """
         the actual u-net architecture
         """
@@ -66,9 +66,10 @@ class Unet_model_simple(object):
                 m = Conv2D(dim, 2, padding='same',data_format = format_)(m)
             else:
                 m = Conv2DTranspose(dim, 3, strides=2,padding='same',data_format = format_)(m)
-            n=concatenate([n,m])
+            #n=concatenate([n,m])
             #the decoding path
-            m = self.res_block_dec_simple(n, 0.0,dim, acti, bn, format_)
+            #m = self.res_block_dec_simple(n, 0.0,dim, acti, bn, format_)
+            m = self.res_block_dec_simple(m, 0.0, dim, acti, bn, format_)
         else:
             m = self.res_block_enc_simple(m, 0.0,dim, acti, bn, format_)
         return m
@@ -79,13 +80,13 @@ class Unet_model_simple(object):
         the encoding unit which a residual block
         """
         n = BatchNormalization()(m) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
+        n=  Activation(acti)(n)
+        #n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
                 
         n = BatchNormalization()(n) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
+        n=  Activation(acti)(n)
+        #n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
 
         #n=add([m,n]) 
@@ -101,13 +102,13 @@ class Unet_model_simple(object):
         """
          
         n = BatchNormalization()(m) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
+        n=  Activation(acti)(n)
+        #n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
 
         n = BatchNormalization()(n) if bn else n
-        #n=  Activation(acti)(n)
-        n=Activation('relu')(n)
+        n=  Activation(acti)(n)
+        #n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
         
         #Save = Conv2D(dim, 1, padding='same',data_format = format_,use_bias=False)(m) 
