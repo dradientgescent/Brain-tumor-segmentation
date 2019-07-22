@@ -33,15 +33,15 @@ class Unet_model(object):
         out=self.unet(inputs=i_)
         model = Model(input=i, output=out)
 
-        sgd = SGD(lr=0.08, momentum=0.9, decay=5e-6, nesterov=False)
-        model.compile(loss=gen_dice_loss, optimizer=sgd, metrics=[dice_whole_metric,dice_core_metric,dice_en_metric])
+        sgd = SGD(lr=0.01, momentum=0.9, decay=5e-6, nesterov=False)
+        model.compile(loss=gen_dice_loss, optimizer=sgd, metrics=[dice_whole_metric, dice_core_metric, dice_en_metric])
         #load weights if set for prediction
         if self.load_model_weights is not None:
             model.load_weights(self.load_model_weights)
         return model
 
 
-    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.0, batchnorm=True, upconv=True,format_='channels_last'):
+    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.2, batchnorm=True, upconv=True,format_='channels_last'):
         """
         the actual u-net architecture
         """
