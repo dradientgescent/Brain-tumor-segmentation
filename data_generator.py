@@ -38,16 +38,16 @@ class DataGenerator(keras.utils.Sequence):
         y = []
 
         # Generate data
-        while(len(X)) != 16:
+        while(len(X)) != self.batch_size:
             index_i = random.randint(0, 245)
             index_j = random.randint(0, 438)
 
-            if os.path.exists(self.path + 'patches/patch_%d_%d.npy' %(index_i, index_j)) and os.path.exists(self.path + 'masks/label_%d_%d.npy' %(index_i, index_j)):
+            if os.path.exists(self.path + 'patches/slice_%d_%d.npy' %(index_i, index_j)) and os.path.exists(self.path + 'masks/slice_%d_%d.npy' %(index_i, index_j)):
 
                 # Store sample
-                X.append(np.load(self.path + 'patches/patch_%d_%d.npy' %(index_i, index_j)))
+                X.append(np.load(self.path + 'patches/slice_%d_%d.npy' %(index_i, index_j)))
                 # Store class
-                y.append(np.load(self.path + 'masks/label_%d_%d.npy' %(index_i, index_j)))
+                y.append(np.load(self.path + 'masks/slice_%d_%d.npy' %(index_i, index_j)))
 
         #print(np.array(y).shape, np.array(X).shape)
 

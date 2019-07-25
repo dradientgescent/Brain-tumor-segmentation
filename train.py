@@ -57,28 +57,11 @@ class Training(object):
             #self.model.load_weights('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/SimUnet.01_0.095.hdf5')
             print("U-net CNN compiled!")
 
-    def macro_batch_generator(self, val = False):
-
-        while True:
-
-            batch_x = []
-            batch_y = []
-
-            #print('Generator')
-            for i in range(4):
-
-                    batch_x.append(single_extractor(val)[0])
-                    batch_y.append(single_extractor(val)[1])
-
-            #print(np.array(batch_x).shape)
-
-            yield (np.array(batch_x), np.array(batch_y))
-
     def fit_unet(self, train_gen, val_gen):
 
         train_generator = train_gen
         val_generator = val_gen
-        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/og_pipeline/ResUnet.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
+        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
         self.model.fit_generator(train_generator,
                                  epochs=self.nb_epoch, steps_per_epoch=100, validation_data=val_generator, validation_steps=100,  verbose=1,
                                  callbacks=[checkpointer, SGDLearningRateTracker()])
@@ -160,11 +143,11 @@ if __name__ == "__main__":
     #brain_seg.model.save('models/unet_with_res/unet_with_res.h5')
     print(brain_seg.model.summary())
 
-    train_generator = DataGenerator('/media/parth/DATA/brats_patches/_train/', batch_size=32)
-    val_generator = DataGenerator('/media/parth/DATA/brats_patches/_val/', batch_size=32)
+    train_generator = DataGenerator('/media/parth/DATA/brats_slices/_train/', batch_size=8)
+    val_generator = DataGenerator('/media/parth/DATA/brats_slices/_val/', batch_size=8)
 
-    brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN.h5')
-    #brain_seg.fit_unet(train_generator, val_generator)
+    #brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.h5')
+    brain_seg.fit_unet(train_generator, val_generator)
     #random.seed(7)
 '''
     for i in range(7, 25):

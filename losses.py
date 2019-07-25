@@ -30,18 +30,19 @@ def dice_updated(y_true, y_pred):
 def dice_whole_metric(y_true, y_pred):
     #computes the dice for the whole tumor
 
-    #y_pred = tf.round(y_pred)
+    y_pred = tf.round(y_pred)
     y_true_f = K.reshape(y_true,shape=(-1,4))
     y_pred_f = K.reshape(y_pred,shape=(-1,4))
     y_whole=K.sum(y_true_f[:,1:],axis=1)
     p_whole=K.sum(y_pred_f[:,1:],axis=1)
+    #print(y_whole, p_whole)
     dice_whole=dice(y_whole,p_whole)
     return dice_whole
 
 def dice_en_metric(y_true, y_pred):
     #computes the dice for the enhancing region
 
-    #y_pred = tf.round(y_pred)
+    y_pred = tf.round(y_pred)
     y_true_f = K.reshape(y_true,shape=(-1,4))
     y_pred_f = K.reshape(y_pred,shape=(-1,4))
     y_enh=y_true_f[:,-1]
@@ -120,22 +121,25 @@ def soft_dice_loss(y_true, y_pred):
 
         Adapted from https://github.com/Lasagne/Recipes/issues/99#issuecomment-347775022
     '''
-
+    y_true, y_pred = np.around(y_true), np.around(y_pred)
     epsilon = 1e-6
     # skip the batch and class axis for calculating Dice score
     axes = tuple(range(1, len(y_pred.shape) - 1))
     numerator = 2. * np.sum(y_pred * y_true, axes)
-    denominator = np.sum(np.square(y_pred) + np.square(y_true), axes)
+    denominator = np.sum(y_pred + y_true, axes)
+    #print(numerator, denominator)
+    return np.mean(numerator / (denominator + epsilon))  # average over classes and batch
 
-    return 1 - np.mean(numerator / (denominator + epsilon))  # average over classes and batch
-
-smooth = 1.
+smooth = 0.02
 
 def dice_coef(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+    y_true, y_pred = np.around(y_true), np.around(y_pred)
+    #print(y_true)
+    #y_true_f = np.reshape(y_true, ((-1, 4)))
+    #y_pred_f = np.reshape(y_pred, ((-1, 4)))
+    intersection = np.sum(y_true * y_pred)
+    #print(intersection)
+    return (2. * intersection + smooth) / (np.sum(y_true) + np.sum(y_pred) + smooth)
 
 
 def dice_coef_loss(y_true, y_pred):
