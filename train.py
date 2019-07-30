@@ -52,7 +52,7 @@ class Training(object):
             self.model =load_model(load_model_resume_training,custom_objects={'gen_dice_loss': gen_dice_loss,'dice_whole_metric':dice_whole_metric,'dice_core_metric':dice_core_metric,'dice_en_metric':dice_en_metric})
             print("pre-trained model loaded!")
         else:
-            unet = Unet_model_simple(img_shape=(240, 240, 4))
+            unet = Unet_model(img_shape=(128, 128, 4))
             self.model= unet.model
             #self.model.load_weights('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/SimUnet.01_0.095.hdf5')
             print("U-net CNN compiled!")
@@ -61,7 +61,7 @@ class Training(object):
 
         train_generator = train_gen
         val_generator = val_gen
-        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
+        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_MC/UnetRes.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
         self.model.fit_generator(train_generator,
                                  epochs=self.nb_epoch, steps_per_epoch=100, validation_data=val_generator, validation_steps=100,  verbose=1,
                                  callbacks=[checkpointer, SGDLearningRateTracker()])
@@ -143,8 +143,8 @@ if __name__ == "__main__":
     #brain_seg.model.save('models/unet_with_res/unet_with_res.h5')
     print(brain_seg.model.summary())
 
-    train_generator = DataGenerator('/media/parth/DATA/brats_slices/_train/', batch_size=8)
-    val_generator = DataGenerator('/media/parth/DATA/brats_slices/_val/', batch_size=8)
+    train_generator = DataGenerator('/media/parth/DATA/brats_patches/_train/', batch_size=16)
+    val_generator = DataGenerator('/media/parth/DATA/brats_patches/_val/', batch_size=16)
 
     #brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.h5')
     brain_seg.fit_unet(train_generator, val_generator)

@@ -30,6 +30,7 @@ class Unet_model(object):
         i_=GaussianNoise(0.01)(i)
 
         i_ = Conv2D(64, 2, padding='same',data_format = 'channels_last')(i_)
+        i_ = Dropout(rate=0.5)(i_, training=True)
         out=self.unet(inputs=i_)
         model = Model(input=i, output=out)
 
@@ -41,7 +42,7 @@ class Unet_model(object):
         return model
 
 
-    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.2, batchnorm=True, upconv=True,format_='channels_last'):
+    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.5, batchnorm=True, upconv=True,format_='channels_last'):
         """
         the actual u-net architecture
         """
@@ -50,6 +51,7 @@ class Unet_model(object):
         #o =  Activation('relu')(o)
         o=PReLU(shared_axes=[1, 2])(o)
         o = Conv2D(nb_classes, 1, padding='same',data_format = format_)(o)
+        o = Dropout(rate=dropout)(o, training = True)
         o = Activation('softmax')(o)
         return o
 
@@ -60,10 +62,12 @@ class Unet_model(object):
             n = self.res_block_enc(m,0.0,dim,acti, bn,format_)
             #using strided 2D conv for donwsampling
             m = Conv2D(int(inc*dim), 2,strides=2, padding='same',data_format = format_)(n)
+            m = Dropout(rate=do)(m, training = True)
             m = self.level_block(m,int(inc*dim), depth-1, inc, acti, do, bn, up )
             if up:
                 m = UpSampling2D(size=(2, 2),data_format = format_)(m)
                 m = Conv2D(dim, 2, padding='same',data_format = format_)(m)
+                m = Dropout(rate=do)(m, training = True)
             else:
                 m = Conv2DTranspose(dim, 3, strides=2,padding='same',data_format = format_)(m)
             n=concatenate([n,m])
@@ -84,12 +88,12 @@ class Unet_model(object):
         #n=  Activation(acti)(n)
         n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
-                
+        n = Dropout(rate=drpout)(n, training = True)
         n = BatchNormalization()(n) if bn else n
         #n=  Activation(acti)(n)
         n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
-
+        n = Dropout(rate=drpout)(n, training = True)
         n=add([m,n]) 
         
         return  n 
@@ -106,12 +110,12 @@ class Unet_model(object):
         #n=  Activation(acti)(n)
         n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format = format_)(n)
-
+        n = Dropout(rate=drpout)(n, training = True)
         n = BatchNormalization()(n) if bn else n
         #n=  Activation(acti)(n)
         n=PReLU(shared_axes=[1, 2])(n)
         n = Conv2D(dim, 3, padding='same',data_format =format_ )(n)
-        
+        n = Dropout(rate=drpout)(n, training = True)
         Save = Conv2D(dim, 1, padding='same',data_format = format_,use_bias=False)(m) 
         n=add([Save,n]) 
         
