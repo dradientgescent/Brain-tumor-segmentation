@@ -11,13 +11,14 @@ from model_simple import Unet_model_simple
 from losses import *
 #from keras.utils.visualize_util import plot
 from extract_patches import *
-from model_unet_git import unet
+#from model_unet_git import unet
 from data_generator import DataGenerator
 
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
+#config.gpu_options.allow_growth = True
+config.gpu_options.per_process_gpu_memory_fraction = 0.5
 config.gpu_options.visible_device_list = "0"
 set_session(tf.Session(config=config))
 
@@ -30,8 +31,8 @@ class SGDLearningRateTracker(Callback):
             optimizer = self.model.optimizer
             lr = K.get_value(optimizer.lr)
             decay = K.get_value(optimizer.decay)
-            lr=lr/10
-            decay=decay*10
+            lr=lr/5
+            decay=decay*5
             K.set_value(optimizer.lr, lr)
             K.set_value(optimizer.decay, decay)
             print('LR changed to:',lr)
@@ -54,14 +55,14 @@ class Training(object):
         else:
             unet = Unet_model(img_shape=(128, 128, 4))
             self.model= unet.model
-            #self.model.load_weights('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/SimUnet.01_0.095.hdf5')
+            #self.model.load_weights('/home/brats/parth/checkpoints/unet_mc/UnetRes.90_1.538.hdf5')
             print("U-net CNN compiled!")
 
     def fit_unet(self, train_gen, val_gen):
 
         train_generator = train_gen
         val_generator = val_gen
-        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_MC/UnetRes.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
+        checkpointer = ModelCheckpoint(filepath='/home/brats/parth/checkpoints/unet_mc/UnetRes.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
         self.model.fit_generator(train_generator,
                                  epochs=self.nb_epoch, steps_per_epoch=100, validation_data=val_generator, validation_steps=100,  verbose=1,
                                  callbacks=[checkpointer, SGDLearningRateTracker()])
@@ -117,15 +118,6 @@ class Training(object):
         self.model = model_comp
         return model_comp
 
-import os
-import psutil
-import timeit
-import gc
-
-def get_mem_usage():
-    process = psutil.Process(os.getpid())
-    return process.memory_info()
-
 if __name__ == "__main__":
     #set arguments
 
@@ -143,11 +135,13 @@ if __name__ == "__main__":
     #brain_seg.model.save('models/unet_with_res/unet_with_res.h5')
     print(brain_seg.model.summary())
 
-    train_generator = DataGenerator('/media/parth/DATA/brats_patches/_train/', batch_size=16)
-    val_generator = DataGenerator('/media/parth/DATA/brats_patches/_val/', batch_size=16)
+    train_generator = DataGenerator('/home/brats/parth/parth/_train/', batch_size=16)
+    val_generator = DataGenerator('/home/brats/parth/parth/_val/', batch_size=16)
 
     #brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.h5')
-    brain_seg.fit_unet(train_generator, val_generator)
+    #brain_seg.fit_unet(train_generator, val_generator)
+    brain_seg.model.save('/home/brats/parth/UnetRes_MC.h5')
+
     #random.seed(7)
 '''
     for i in range(7, 25):
@@ -163,7 +157,8 @@ if __name__ == "__main__":
             #print("loading patches done\n")
 
             # fit model
-            brain_seg.fit_unet(X,Y,X_patches_valid,Y_labels_valid, iteration=i)
+            #brain_seg.fit_unet(X,Y,X_patches_valid,Y_labels_valid, iteration=i)
+	    brain_seg.model.save('/home/brats/parth/UnetRes_MC.h5')
             del X, Y, X_patches_valid, Y_labels_valid
 
             gc.collect()
