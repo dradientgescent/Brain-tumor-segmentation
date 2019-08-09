@@ -4,6 +4,7 @@ import tensorflow as tf
 
 def dice(y_true, y_pred):
     #computes the dice score on two tensors
+    #y_pred = tf.round(y_pred)
 
     sum_p=K.sum(y_pred,axis=0)
     sum_r=K.sum(y_true,axis=0)
@@ -13,20 +14,35 @@ def dice(y_true, y_pred):
     dice_score =(dice_numerator+K.epsilon() )/(dice_denominator+K.epsilon())
     return dice_score
 
+def dice_updated(y_true, y_pred):
+    #computes the dice score on two tensors
+    #y_pred = tf.round(y_pred)
+
+    sum_p=K.sum(y_pred,axis=[1,2])
+    sum_r=K.sum(y_true,axis=[1,2])
+    sum_pr=K.sum(y_true * y_pred,axis=[1,2])
+    dice_numerator =2*sum_pr
+    dice_denominator =sum_r+sum_p
+    dice_score =(dice_numerator+K.epsilon() )/(dice_denominator+K.epsilon())
+    return dice_score
+
 
 def dice_whole_metric(y_true, y_pred):
     #computes the dice for the whole tumor
 
+    y_pred = tf.round(y_pred)
     y_true_f = K.reshape(y_true,shape=(-1,4))
     y_pred_f = K.reshape(y_pred,shape=(-1,4))
     y_whole=K.sum(y_true_f[:,1:],axis=1)
     p_whole=K.sum(y_pred_f[:,1:],axis=1)
+    #print(y_whole, p_whole)
     dice_whole=dice(y_whole,p_whole)
     return dice_whole
 
 def dice_en_metric(y_true, y_pred):
     #computes the dice for the enhancing region
 
+    y_pred = tf.round(y_pred)
     y_true_f = K.reshape(y_true,shape=(-1,4))
     y_pred_f = K.reshape(y_pred,shape=(-1,4))
     y_enh=y_true_f[:,-1]
@@ -58,7 +74,7 @@ def weighted_log_loss(y_true, y_pred):
     y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
     # weights are assigned in this order : normal,necrotic,edema,enhancing 
     weights=np.array([1,5,2,4])
-    weights = K.variable(weights)
+    weights = K.variable(weights, name='weights')
     loss = y_true * K.log(y_pred) * weights
     loss = K.mean(-K.sum(loss, -1))
     return loss
@@ -82,3 +98,50 @@ def gen_dice_loss(y_true, y_pred):
     del sum_p,sum_r,sum_pr,weights
 
     return GDL+weighted_log_loss(y_true,y_pred)
+
+def dice_loss(y_true, y_pred):
+    return(1-dice(y_true, y_pred))
+
+
+def soft_dice_loss(y_true, y_pred):
+    '''
+    Soft dice loss calculation for arbitrary batch size, number of classes, and number of spatial dimensions.
+    Assumes the `channels_last` format.
+
+    # Arguments
+        y_true: b x X x Y( x Z...) x c One hot encoding of ground truth
+        y_pred: b x X x Y( x Z...) x c Network output, must sum to 1 over c channel (such as after softmax)
+        epsilon: Used for numerical stability to avoid divide by zero errors
+
+    # References
+        V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation
+        https://arxiv.org/abs/1606.04797
+        More details on Dice loss formulation
+        https://mediatum.ub.tum.de/doc/1395260/1395260.pdf (page 72)
+
+        Adapted from https://github.com/Lasagne/Recipes/issues/99#issuecomment-347775022
+    '''
+    y_true, y_pred = np.around(y_true), np.around(y_pred)
+    epsilon = 1e-6
+    # skip the batch and class axis for calculating Dice score
+    axes = tuple(range(1, len(y_pred.shape)-1))
+    #print(axes)
+    numerator = 2. * np.sum(y_pred * y_true, axes)
+    denominator = np.sum(y_pred + y_true, axes)
+    #print(numerator, denominator)
+    return np.mean(numerator / (denominator + epsilon))  # average over classes and batch
+
+smooth = 0.02
+
+def dice_coef(y_true, y_pred):
+    y_true, y_pred = np.around(y_true), np.around(y_pred)
+    #print(y_true)
+    #y_true_f = np.reshape(y_true, ((-1, 4)))
+    #y_pred_f = np.reshape(y_pred, ((-1, 4)))
+    intersection = np.sum(y_true * y_pred)
+    #print(intersection)
+    return (2. * intersection + smooth) / (np.sum(y_true) + np.sum(y_pred) + smooth)
+
+
+def dice_coef_loss(y_true, y_pred):
+    return 1-dice_coef(y_true, y_pred)
