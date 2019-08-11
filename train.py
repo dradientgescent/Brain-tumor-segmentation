@@ -7,29 +7,42 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import  ModelCheckpoint,Callback,LearningRateScheduler
 import keras.backend as K
 from model import Unet_model
+from model_simple import Unet_model_simple
 from losses import *
 #from keras.utils.visualize_util import plot
+from extract_patches import *
+from model_unet_git import unet
+from data_generator import DataGenerator
+
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.gpu_options.visible_device_list = "0"
+set_session(tf.Session(config=config))
 
 
 
 class SGDLearningRateTracker(Callback):
+
     def on_epoch_begin(self, epoch, logs={}):
-        optimizer = self.model.optimizer
-        lr = K.get_value(optimizer.lr)
-        decay = K.get_value(optimizer.decay)
-        lr=lr/10
-        decay=decay*10
-        K.set_value(optimizer.lr, lr)
-        K.set_value(optimizer.decay, decay)
-        print('LR changed to:',lr)
-        print('Decay changed to:',decay)
+        if epoch%10 == 0 and epoch !=0:
+            optimizer = self.model.optimizer
+            lr = K.get_value(optimizer.lr)
+            decay = K.get_value(optimizer.decay)
+            lr=lr/10
+            decay=decay*10
+            K.set_value(optimizer.lr, lr)
+            K.set_value(optimizer.decay, decay)
+            print('LR changed to:',lr)
+            print('Decay changed to:',decay)
 
 
 
 class Training(object):
     
 
-    def __init__(self, batch_size,nb_epoch,load_model_resume_training=None):
+    def __init__(self, batch_size, nb_epoch,load_model_resume_training=None):
 
         self.batch_size = batch_size
         self.nb_epoch = nb_epoch
@@ -39,17 +52,26 @@ class Training(object):
             self.model =load_model(load_model_resume_training,custom_objects={'gen_dice_loss': gen_dice_loss,'dice_whole_metric':dice_whole_metric,'dice_core_metric':dice_core_metric,'dice_en_metric':dice_en_metric})
             print("pre-trained model loaded!")
         else:
-            unet =Unet_model(img_shape=(128,128,4))
-            self.model=unet.model
+            unet = Unet_model(img_shape=(128, 128, 4))
+            self.model= unet.model
+            #self.model.load_weights('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/SimUnet.01_0.095.hdf5')
             print("U-net CNN compiled!")
 
-                    
-    def fit_unet(self,X33_train,Y_train,X_patches_valid=None,Y_labels_valid=None):
+    def fit_unet(self, train_gen, val_gen):
 
-        train_generator=self.img_msk_gen(X33_train,Y_train,9999)
-        checkpointer = ModelCheckpoint(filepath='brain_segmentation/ResUnet.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1)
-        self.model.fit_generator(train_generator,steps_per_epoch=len(X33_train)//self.batch_size,epochs=self.nb_epoch, validation_data=(X_patches_valid,Y_labels_valid),verbose=1, callbacks = [checkpointer,SGDLearningRateTracker()])
+        train_generator = train_gen
+        val_generator = val_gen
+        checkpointer = ModelCheckpoint(filepath='/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_MC/UnetRes.{epoch:02d}_{val_loss:.3f}.hdf5', verbose=1, period = 5)
+        self.model.fit_generator(train_generator,
+                                 epochs=self.nb_epoch, steps_per_epoch=100, validation_data=val_generator, validation_steps=100,  verbose=1,
+                                 callbacks=[checkpointer, SGDLearningRateTracker()])
+
+        #del checkpointer
+        #K.clear_session()
+        # self.model.fit(X33_train,Y_train, epochs=self.nb_epoch,batch_size=self.batch_size,validation_data=(X_patches_valid,Y_labels_valid),verbose=1, callbacks = [checkpointer,SGDLearningRateTracker()])
         #self.model.fit(X33_train,Y_train, epochs=self.nb_epoch,batch_size=self.batch_size,validation_data=(X_patches_valid,Y_labels_valid),verbose=1, callbacks = [checkpointer,SGDLearningRateTracker()])
+
+    
 
     def img_msk_gen(self,X33_train,Y_train,seed):
 
@@ -58,8 +80,8 @@ class Training(object):
         '''
         datagen = ImageDataGenerator(horizontal_flip=True,data_format="channels_last")
         datagen_msk = ImageDataGenerator(horizontal_flip=True,data_format="channels_last")
-        image_generator = datagen.flow(X33_train,batch_size=4,seed=seed)
-        y_generator = datagen_msk.flow(Y_train,batch_size=4,seed=seed)
+        image_generator = datagen.flow(X33_train,batch_size=self.batch_size,seed=seed)
+        y_generator = datagen_msk.flow(Y_train,batch_size=self.batch_size,seed=seed)
         while True:
             yield(image_generator.next(), y_generator.next())
 
@@ -95,7 +117,14 @@ class Training(object):
         self.model = model_comp
         return model_comp
 
+import os
+import psutil
+import timeit
+import gc
 
+def get_mem_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info()
 
 if __name__ == "__main__":
     #set arguments
@@ -105,24 +134,48 @@ if __name__ == "__main__":
     #save=None
 
     #compile the model
-    brain_seg = Training(batch_size=4,nb_epoch=3,load_model_resume_training=model_to_load)
+    brain_seg = Training(batch_size=16, nb_epoch=100)
 
     print("number of trainabale parameters:",brain_seg.model.count_params())
     #print(brain_seg.model.summary())
     #plot(brain_seg.model, to_file='model_architecture.png', show_shapes=True)
 
-    #load data from disk
-    Y_labels=np.load("y_training.npy").astype(np.uint8)
-    X_patches=np.load("x_training.npy").astype(np.float32)
-    Y_labels_valid=np.load("y_valid.npy").astype(np.uint8)
-    X_patches_valid=np.load("x_valid.npy").astype(np.float32)
-    print("loading patches done\n")
+    #brain_seg.model.save('models/unet_with_res/unet_with_res.h5')
+    print(brain_seg.model.summary())
 
-    # fit model
-    brain_seg.fit_unet(X_patches,Y_labels,X_patches_valid,Y_labels_valid)#*
+    train_generator = DataGenerator('/media/parth/DATA/brats_patches/_train/', batch_size=16)
+    val_generator = DataGenerator('/media/parth/DATA/brats_patches/_val/', batch_size=16)
 
-    #if save is not None:
-    #    brain_seg.save_model('models/' + save)
+    #brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.h5')
+    brain_seg.fit_unet(train_generator, val_generator)
+    #random.seed(7)
+'''
+    for i in range(7, 25):
+        try:
+            print('Epoch: ', i)
+            train_index = random.randint(0, 25)
+            val_index = random.randint(0,5)
+            #load data from disk
+            Y=np.load("/media/parth/DATA/brats_as_npy_low_res/train_2/y_dataset_{}.npy".format(train_index)).astype(np.uint8)
+            X=np.load("/media/parth/DATA/brats_as_npy_low_res/train_2/x_dataset_{}.npy".format(train_index)).astype(np.float32)
+            Y_labels_valid=np.load("/media/parth/DATA/brats_as_npy_low_res/val_2/y_dataset_{}.npy".format(val_index)).astype(np.uint8)
+            X_patches_valid=np.load("/media/parth/DATA/brats_as_npy_low_res/val_2/x_dataset_{}.npy".format(val_index)).astype(np.float32)
+            #print("loading patches done\n")
+
+            # fit model
+            brain_seg.fit_unet(X,Y,X_patches_valid,Y_labels_valid, iteration=i)
+            del X, Y, X_patches_valid, Y_labels_valid
+
+            gc.collect()
+            #t = timeit.timeit('build()', number=1, setup="from __main__ import build")
+            mem = get_mem_usage()
+            print('mem: {}'.format(mem))
+            #if save is not None:
+            #    brain_seg.save_model('models/' + save)
+        except Exception as e:
+            print(e)
+            pass
+            '''
 
 
 

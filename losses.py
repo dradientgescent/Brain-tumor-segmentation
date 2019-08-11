@@ -124,8 +124,8 @@ def soft_dice_loss(y_true, y_pred):
     y_true, y_pred = np.around(y_true), np.around(y_pred)
     epsilon = 1e-6
     # skip the batch and class axis for calculating Dice score
-    axes = tuple(range(1, len(y_pred.shape)-1))
-    #print(axes)
+    axes = tuple(range(1, len(y_pred.shape) - 1))
+
     numerator = 2. * np.sum(y_pred * y_true, axes)
     denominator = np.sum(y_pred + y_true, axes)
     #print(numerator, denominator)
