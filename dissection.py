@@ -9,10 +9,12 @@ from extract_patches import Pipeline
 from scipy.misc import imresize
 from keras.utils import np_utils
 import SimpleITK as sitk
+import pdb
 import matplotlib.pyplot as plt
+
+from scipy.ndimage.measurements import label
 import cv2 
 from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
-kernel = np.ones((16, 16), np.uint8) 
 
 
 # from evaluation_metrics import *
@@ -99,6 +101,18 @@ def load_vol(filepath_image, model_type, slice_):
     return test_image, gt
 
 
+def perform_postprocessing(img, threshold=800):
+    c,n = label(img)
+    nums = np.array([np.sum(c==i) for i in range(1, n+1)])
+    # print (nums)
+    selected_components = np.array([threshold<num for num in nums])
+    selected_components[np.argmax(nums)] = True
+    mask = np.zeros_like(img)
+    # print(selected_components.tolist())
+    for i,select in enumerate(selected_components):
+        if select:
+            mask[c==(i+1)]=1
+    return mask
 
 
 
@@ -122,43 +136,54 @@ class Dissector():
     def get_threshold_maps(self, percentile):
 
         fmaps = []
-
         for i in range(len(self.path)):
-            print (self.path[i])
-            input_, label_ = load_vol(self.path[i], 'unet', slice_=78)
-            fmaps.append(np.squeeze(self.model.predict(input_[None, ...])))
-
-        fmaps = np.concatenate(fmaps, axis=0)
-        # threshold_maps = np.percentile(fmaps, percentile, axis=0)
-        threshold_maps = np.mean(fmaps, axis=0)
+            for j in range(5, 145, 5):
+                print (self.path[i])
+                input_, label_ = load_vol(self.path[i], 'unet', slice_=j)
+                output = np.squeeze(self.model.predict(input_[None, ...]))
+                fmaps.append(output)
+        # pdb.set_trace()
+        fmaps = np.array(fmaps)
+        print(fmaps.shape)
+        mean_maps = np.mean(fmaps, axis=0)
+        # std_maps = np.std(fmaps, axis=0)
+        # threshold_maps = mean_maps + 2.*std_maps
+        threshold_maps = np.percentile(fmaps, percentile, axis=0)
+        print(threshold_maps.shape)
 
         np.save('ModelDissection_layer_{}.npy'.format(self.layer_name), threshold_maps)
+        np.save('ModelDissection_layer_fmaps_{}.npy'.format(self.layer_name), fmaps)
         return threshold_maps
 
 
     def apply_threshold(self, test_image, threshold_maps):
 
         fmaps = np.squeeze(self.model.predict(test_image[None, ...]))
-        masks = fmaps > threshold_maps
+        masks = fmaps >= threshold_maps
         masks = 1.*(masks)
-
-        print (fmaps.max(), fmaps.min(), threshold_maps.min(), threshold_maps.max())
 
         shape = test_image.shape[:-1]
         resized_masks = np.zeros((shape[0], shape[1], masks.shape[2]))
+        kernel = np.ones((1,1), np.uint8) 
 
         for i in range(masks.shape[-1]):
-            resized_masks[:,:,i] = (cv2.erode(imresize(masks[:,:,i], shape, interp='nearest'), kernel, iterations=1))/255
+            resized_img = imresize(masks[:,:,i], shape, interp='nearest')
+            post_processed_img = perform_postprocessing(resized_img)
+            eroded_img = (cv2.dilate(post_processed_img, kernel, iterations=1))/255
+            resized_masks[:,:,i] = eroded_img
 
-        for i in range(5):
-            for j in range(5):
-                plt.subplot(5, 5, i*5 +(j+1))
-                plt.imshow(resized_masks[:,:,i*5 +(j+1)], cmap='gray')
+        channels = threshold_maps.shape[2]
+        rows = int(channels**0.5)
+
+        for i in range(7):
+            for j in range(7):
+                plt.subplot(7, 7, i*7 +(j+1))
+                plt.imshow(resized_masks[:,:,i*7 +(j+1)], cmap='gray')
 
 
-        plt.subplot(5,5,1)
+        plt.subplot(7,7,1)
         plt.imshow(test_image[:,:,3])
-        plt.subplot(5,5,2)
+        plt.subplot(7,7,2)
         plt.imshow(test_image[:,:,3]*np.mean(resized_masks, axis=2), cmap='gray')
 
         plt.show()
@@ -167,11 +192,14 @@ if __name__ == "__main__":
 
     D = Dissector('/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.h5', 
                     '/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.40_0.559.hdf5', 
-                    "/home/pi/Projects/beyondsegmentation/LGG/**",
-                    "conv2d_17")
+                    "/home/pi/Projects/beyondsegmentation/HGG/**",
+                    "conv2d_21")
 
-    threshold_maps = D.get_threshold_maps(0.995)
-    path = glob("/home/pi/Projects/beyondsegmentation/HGG/**")[:5]
-    input_, label_ = load_vol(path[3], 'unet', slice_=78)
-    input_ = (input_ - np.min(input_))/(np.max(input_) - np.min(input_))
+    # threshold_maps = D.get_threshold_maps(95)
+
+    fmaps = np.load('ModelDissection_layer_fmaps_conv2d_21.npy')
+    threshold_maps = np.percentile(fmaps, 85, axis=0)
+    path = glob("/home/pi/Projects/beyondsegmentation/HGG/**")
+    input_, label_ = load_vol(path[60], 'unet', slice_= 78)
+    # input_ = (input_ - np.min(input_))/(np.max(input_) - np.min(input_))
     D.apply_threshold(input_, threshold_maps)
