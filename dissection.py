@@ -11,7 +11,7 @@ from keras.utils import np_utils
 import SimpleITK as sitk
 import pdb
 import matplotlib.pyplot as plt
-
+import os
 from scipy.ndimage.measurements import label
 import cv2 
 from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
@@ -144,19 +144,17 @@ class Dissector():
                 fmaps.append(output)
         # pdb.set_trace()
         fmaps = np.array(fmaps)
-        print(fmaps.shape)
         mean_maps = np.mean(fmaps, axis=0)
         # std_maps = np.std(fmaps, axis=0)
         # threshold_maps = mean_maps + 2.*std_maps
         threshold_maps = np.percentile(fmaps, percentile, axis=0)
-        print(threshold_maps.shape)
 
         np.save('ModelDissection_layer_{}.npy'.format(self.layer_name), threshold_maps)
         np.save('ModelDissection_layer_fmaps_{}.npy'.format(self.layer_name), fmaps)
         return threshold_maps
 
 
-    def apply_threshold(self, test_image, threshold_maps):
+    def apply_threshold(self, test_image, gt, threshold_maps):
 
         fmaps = np.squeeze(self.model.predict(test_image[None, ...]))
         masks = fmaps >= threshold_maps
@@ -166,40 +164,78 @@ class Dissector():
         resized_masks = np.zeros((shape[0], shape[1], masks.shape[2]))
         kernel = np.ones((1,1), np.uint8) 
 
+        class_filters = np.zeros(3)
+
         for i in range(masks.shape[-1]):
             resized_img = imresize(masks[:,:,i], shape, interp='nearest')
             post_processed_img = perform_postprocessing(resized_img)
             eroded_img = (cv2.dilate(post_processed_img, kernel, iterations=1))/255
+
+            for class_ in range(1,4):
+                mask = gt == class_
+                class_dice = (np.sum(mask*eroded_img) + 1e-5)*2.0/(np.sum(mask*1.) + np.sum(eroded_img*1.0) + 1e-5) 
+                if class_dice > 4e-3:
+                    class_filters[class_ -1] += 1
+
             resized_masks[:,:,i] = eroded_img
 
         channels = threshold_maps.shape[2]
         rows = int(channels**0.5)
 
-        for i in range(7):
-            for j in range(7):
-                plt.subplot(7, 7, i*7 +(j+1))
-                plt.imshow(resized_masks[:,:,i*7 +(j+1)], cmap='gray')
+        # for i in range(7):
+        #     for j in range(7):
+        #         plt.subplot(7, 7, i*7 +(j+1))
+        #         plt.imshow(resized_masks[:,:,i*7 +(j+1)], cmap='gray')
 
 
-        plt.subplot(7,7,1)
-        plt.imshow(test_image[:,:,3])
-        plt.subplot(7,7,2)
-        plt.imshow(test_image[:,:,3]*np.mean(resized_masks, axis=2), cmap='gray')
+        # plt.subplot(7,7,1)
+        # plt.imshow(test_image[:,:,3])
+        # plt.subplot(7,7,2)
+        # plt.imshow(test_image[:,:,3]*np.mean(resized_masks, axis=2), cmap='gray')
 
-        plt.show()
+        # plt.show()
+        return class_filters
 
 if __name__ == "__main__":
 
-    D = Dissector('/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.h5', 
-                    '/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.40_0.559.hdf5', 
-                    "/home/pi/Projects/beyondsegmentation/HGG/**",
-                    "conv2d_21")
+    layer_wise_filters = []
+    layers_to_consider = ['conv2d_3', 'conv2d_5', 'conv2d_13', 'conv2d_17',  'conv2d_21']
+    for layer in layers_to_consider:
 
-    # threshold_maps = D.get_threshold_maps(95)
+        print (layer)
+        D = Dissector('/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.h5', 
+                        '/home/pi/Projects/beyondsegmentation/Brain-tumor-segmentation/trained_models/U_resnet/ResUnet.40_0.559.hdf5', 
+                        "/home/pi/Projects/beyondsegmentation/HGG/**",
+                        layer)
 
-    fmaps = np.load('ModelDissection_layer_fmaps_conv2d_21.npy')
-    threshold_maps = np.percentile(fmaps, 85, axis=0)
-    path = glob("/home/pi/Projects/beyondsegmentation/HGG/**")
-    input_, label_ = load_vol(path[60], 'unet', slice_= 78)
-    # input_ = (input_ - np.min(input_))/(np.max(input_) - np.min(input_))
-    D.apply_threshold(input_, threshold_maps)
+        fmap_path = 'ModelDissection_layer_fmaps_' + str(layer) + '.npy'
+
+        if not os.path.exists(fmap_path):
+            threshold_maps = D.get_threshold_maps(95)
+
+        fmaps = np.load(fmap_path)
+        threshold_maps = np.percentile(fmaps, 85, axis=0)
+        path = glob("/home/pi/Projects/beyondsegmentation/HGG/**")
+        input_, label_ = load_vol(path[60], 'unet', slice_= 78)
+        class_filters = D.apply_threshold(input_, label_, threshold_maps)
+        layer_wise_filters.append(class_filters)
+
+    layer_wise_filters = np.array(layer_wise_filters)
+    ind = np.arange(len(layer_wise_filters))  # the x locations for the groups
+    width = 0.25  # the width of the bars
+
+    fig, ax = plt.subplots()
+    rects1 = ax.bar(ind - width, layer_wise_filters[:, 0], width,
+                    label='Class 0')
+    rects2 = ax.bar(ind , layer_wise_filters[:, 1], width,
+                    label='Class 1')
+    rects2 = ax.bar(ind + width, layer_wise_filters[:, 2], width,
+                    label='Class 2')
+
+    # Add some text for labels, title and custom x-axis tick labels, etc.
+    ax.set_ylabel('class specific filter count')
+    # ax.set_title('Scores by group and gender')
+    ax.set_xticks(ind)
+    ax.set_xticklabels(layers_to_consider)
+    ax.legend()
+    plt.show()
