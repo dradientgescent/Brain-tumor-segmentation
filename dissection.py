@@ -15,7 +15,7 @@ import os
 from scipy.ndimage.measurements import label
 import cv2 
 from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
-
+import matplotlib.gridspec as gridspec
 
 # from evaluation_metrics import *
 
@@ -154,7 +154,7 @@ class Dissector():
         return threshold_maps
 
 
-    def apply_threshold(self, test_image, gt, threshold_maps):
+    def apply_threshold(self, test_image, gt, threshold_maps, layer_name):
 
         fmaps = np.squeeze(self.model.predict(test_image[None, ...]))
         masks = fmaps >= threshold_maps
@@ -162,7 +162,7 @@ class Dissector():
 
         shape = test_image.shape[:-1]
         resized_masks = np.zeros((shape[0], shape[1], masks.shape[2]))
-        kernel = np.ones((1,1), np.uint8) 
+        kernel = np.ones((2, 2), np.uint8) 
 
         class_filters = np.zeros(3)
 
@@ -180,20 +180,37 @@ class Dissector():
             resized_masks[:,:,i] = eroded_img
 
         channels = threshold_maps.shape[2]
-        rows = int(channels**0.5)
+        rows = 6 # int(channels**0.5)
+        cols = 6
 
-        # for i in range(7):
-        #     for j in range(7):
-        #         plt.subplot(7, 7, i*7 +(j+1))
-        #         plt.imshow(resized_masks[:,:,i*7 +(j+1)], cmap='gray')
+        plt.figure(figsize=(100, 100))
+        gs = gridspec.GridSpec(rows, cols)
+        gs.update(wspace=0.025, hspace=0.05)
+        
+        for i in range(rows):
+            for j in range(cols):
+                ax = plt.subplot(gs[i, j])
+                im = ax.imshow(resized_masks[:,:,i*rows +(j+1)], cmap='gray')
+                ax.set_xticklabels([])
+                ax.set_yticklabels([])
+                ax.set_aspect('equal')
+                ax.tick_params(bottom='off', top='off', labelbottom='off' )
+                # plt.subplot(7, 7, i*7 +(j+1))
+                # plt.imshow(resized_masks[:,:,i*7 +(j+1)], cmap='gray')
 
 
-        # plt.subplot(7,7,1)
-        # plt.imshow(test_image[:,:,3])
+    
+        ax = plt.subplot(gs[0, 0])
+        im = ax.imshow(test_image[:,:,3], cmap='gray')
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])                                                                                                                                                                                                   
+        ax.set_aspect('equal')
+        ax.tick_params(bottom='off', top='off', labelbottom='off' )
+
         # plt.subplot(7,7,2)
         # plt.imshow(test_image[:,:,3]*np.mean(resized_masks, axis=2), cmap='gray')
-
-        # plt.show()
+        plt.savefig('20uresnet'+layer_name+'_.png', bbox_inches='tight')
+        plt.show()
         return class_filters
 
 if __name__ == "__main__":
@@ -216,8 +233,8 @@ if __name__ == "__main__":
         fmaps = np.load(fmap_path)
         threshold_maps = np.percentile(fmaps, 85, axis=0)
         path = glob("/home/pi/Projects/beyondsegmentation/HGG/**")
-        input_, label_ = load_vol(path[60], 'unet', slice_= 78)
-        class_filters = D.apply_threshold(input_, label_, threshold_maps)
+        input_, label_ = load_vol(path[20], 'unet', slice_= 78)
+        class_filters = D.apply_threshold(input_, label_, threshold_maps, layer)
         layer_wise_filters.append(class_filters)
 
     layer_wise_filters = np.array(layer_wise_filters)
