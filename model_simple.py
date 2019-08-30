@@ -41,7 +41,7 @@ class Unet_model_simple(object):
         return model
 
 
-    def unet(self,inputs, nb_classes=4, start_ch=64, depth=2, inc_rate=2. ,activation='relu', dropout=0.2, batchnorm=True, upconv=True,format_='channels_last'):
+    def unet(self,inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2. ,activation='relu', dropout=0.2, batchnorm=True, upconv=True,format_='channels_last'):
         """
         the actual u-net architecture
         """

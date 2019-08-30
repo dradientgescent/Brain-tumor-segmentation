@@ -7,8 +7,9 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import  ModelCheckpoint,Callback,LearningRateScheduler
 import keras.backend as K
 from model import Unet_model
+from variational_model import Unet_model_variational
 from model_simple import Unet_model_simple
-from losses import *
+from losses_variational import *
 #from keras.utils.visualize_util import plot
 from extract_patches import *
 from model_unet_git import unet
@@ -52,7 +53,7 @@ class Training(object):
             self.model =load_model(load_model_resume_training,custom_objects={'gen_dice_loss': gen_dice_loss,'dice_whole_metric':dice_whole_metric,'dice_core_metric':dice_core_metric,'dice_en_metric':dice_en_metric})
             print("pre-trained model loaded!")
         else:
-            unet = Unet_model(img_shape=(128, 128, 4))
+            unet = Unet_model_simple(img_shape=(240, 240, 4))
             self.model= unet.model
             #self.model.load_weights('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/SimUnet.01_0.095.hdf5')
             print("U-net CNN compiled!")
@@ -146,8 +147,8 @@ if __name__ == "__main__":
     train_generator = DataGenerator('/media/parth/DATA/brats_patches/_train/', batch_size=16)
     val_generator = DataGenerator('/media/parth/DATA/brats_patches/_val/', batch_size=16)
 
-    #brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/FCN_2.h5')
-    brain_seg.fit_unet(train_generator, val_generator)
+    brain_seg.model.save('/home/parth/Interpretable_ML/Brain-tumor-segmentation/checkpoints/Unet_cc/Unet_without skip.h5')
+    #brain_seg.fit_unet(train_generator, val_generator)
     #random.seed(7)
 '''
     for i in range(7, 25):

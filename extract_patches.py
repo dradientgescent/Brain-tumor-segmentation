@@ -4,6 +4,7 @@ import numpy as np
 from glob import glob
 import SimpleITK as sitk
 from keras.utils import np_utils
+import matplotlib.pyplot as plt
 
 class Pipeline(object):
 
@@ -54,7 +55,9 @@ class Pipeline(object):
 
             train_im.append(tmp)
             del tmp    
-            #print(np.array(train_im).shape)
+        # plt.imshow(np.array(train_im).transpose((0, 2, 3, 4, 1))[0, 78, :, :, 0])
+        # plt.show()
+
         return  np.array(train_im)
     
     
@@ -193,10 +196,11 @@ def generate_whole_images(val = False):
             end = (i + 1)
 
             pipe = Pipeline(list_train=path_all[start:end], Normalize=True)
-
+            train_im = np.squeeze(pipe.train_im).transpose((1, 2, 3, 0))
+            print(train_im.shape)
             # Separate image and mask
-            Patches = pipe.train_im[:, :4, :, :, :].reshape((155, 240, 240, 4))
-            Y_labels = pipe.train_im[:, 4, :, :, :].reshape((155, 240, 240, 1))
+            Patches = train_im[:, :, :, :4]
+            Y_labels = train_im[:, :, :, 4]
 
             # transform the data to channels_last keras format
             # Patches=np.transpose(Patches,(0,2,3,1)).astype(np.float32)
@@ -211,13 +215,22 @@ def generate_whole_images(val = False):
             Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
             Y_labels = Y_labels.reshape(shp, 240, 240, 4)
 
-            # Save images, masks
+            # plt.imshow(Y_labels[78][:, :, 1])
+            # plt.show()
+            #Save images, masks
+            counter = 0
             for j in range(Patches.shape[0]):
-                np.save("/media/parth/DATA/brats_slices/val/slice_%d_%d.npy" % (i, j), Patches[j])
-                np.save("/media/parth/DATA/brats_slices/val_labels/slice_%d_%d.npy" % (i, j), Y_labels[j])
-                print(Patches[j].shape)
-        except:
-            pass
+                if np.std(Patches[j]) == 0:
+                #     if counter<5:
+                #         np.save("/media/parth/DATA/brats_slices/val/slice_%d_%d.npy" % (i, j), Patches[j])
+                #         np.save("/media/parth/DATA/brats_slices/val_labels/slice_%d_%d.npy" % (i, j), Y_labels[j])
+                #     counter +=1
+                # else:
+                #     np.save("/media/parth/DATA/brats_slices/val/slice_%d_%d.npy" % (i, j), Patches[j])
+                #     np.save("/media/parth/DATA/brats_slices/val_labels/slice_%d_%d.npy" % (i, j), Y_labels[j])
+                    print(Patches[j].shape)
+        except Exception as e:
+            print(e)
 
 
 
@@ -281,7 +294,7 @@ if __name__ == '__main__':
     generate_whole_images()
 
     # For 128 x 128 patches
-    generate_patches()
+    #generate_patches()
 
 
 
