@@ -4,6 +4,8 @@ import numpy as np
 from glob import glob
 import SimpleITK as sitk
 from keras.utils import np_utils
+import matplotlib.pyplot as plt
+import os
 
 class Pipeline(object):
 
@@ -54,7 +56,9 @@ class Pipeline(object):
 
             train_im.append(tmp)
             del tmp    
-            #print(np.array(train_im).shape)
+        # plt.imshow(np.array(train_im).transpose((0, 2, 3, 4, 1))[0, 78, :, :, 0])
+        # plt.show()
+
         return  np.array(train_im)
     
     
@@ -165,21 +169,29 @@ class Pipeline(object):
             tmp= (slice - np.mean(image_nonzero)) / np.std(image_nonzero)
             #since the range of intensities is between 0 and 5000 ,the min in the normalized slice corresponds to 0 intensity in unnormalized slice
             #the min is replaced with -9 just to keep track of 0 intensities so that we can discard those intensities afterwards when sampling random patches
-            tmp[tmp==tmp.min()]=-9
-            return tmp
+            #tmp[tmp==tmp.min()]=-9
+            return (tmp + abs(np.min(tmp)))/(np.max(tmp) + abs(np.min(tmp)))
 
 
 def generate_whole_images(val = False):
 
     # Paths for Brats2017 dataset
-    path_train = glob('/home/parth/Interpretable_ML/BraTS_2018/train/**')
+    path_train = glob('/media/balaji/CamelyonProject/brats_2018/train/**')
 
-    path_val = glob('/home/parth/Interpretable_ML/BraTS_2018/val/**')
+    path_val = glob('/media/balaji/CamelyonProject/brats_2018/val/**')
+
+    savepath_train = '/media/balaji/CamelyonProject/parth/slices_scaled/train/'
+    
+    savepath_val = '/media/balaji/CamelyonProject/parth/slices_scaled/val/'
 
     if val == True:
         path_all = path_val
+        savepath = savepath_val
     else:
         path_all = path_train
+        savepath = savepath_train
+
+    os.makedirs(savepath, exist_ok = True)
 
     # shuffle the dataset
     np.random.seed(2022)
@@ -187,16 +199,18 @@ def generate_whole_images(val = False):
 
     print(len(path_all))
 
+    print('Extracting Patches.....')
     for i in range(len(path_all)):
         try:
             start = i
             end = (i + 1)
 
             pipe = Pipeline(list_train=path_all[start:end], Normalize=True)
-
+            train_im = np.squeeze(pipe.train_im).transpose((1, 2, 3, 0))
+            #print(train_im.shape)
             # Separate image and mask
-            Patches = pipe.train_im[:, :4, :, :, :].reshape((155, 240, 240, 4))
-            Y_labels = pipe.train_im[:, 4, :, :, :].reshape((155, 240, 240, 1))
+            Patches = train_im[:, :, :, :4]
+            Y_labels = train_im[:, :, :, 4]
 
             # transform the data to channels_last keras format
             # Patches=np.transpose(Patches,(0,2,3,1)).astype(np.float32)
@@ -211,13 +225,22 @@ def generate_whole_images(val = False):
             Y_labels = np_utils.to_categorical(Y_labels).astype(np.uint8)
             Y_labels = Y_labels.reshape(shp, 240, 240, 4)
 
-            # Save images, masks
+            # plt.imshow(Y_labels[78][:, :, 1])
+            # plt.show()
+            #Save images, masks
+            counter = 0
             for j in range(Patches.shape[0]):
-                np.save("/media/parth/DATA/brats_slices/val/slice_%d_%d.npy" % (i, j), Patches[j])
-                np.save("/media/parth/DATA/brats_slices/val_labels/slice_%d_%d.npy" % (i, j), Y_labels[j])
-                print(Patches[j].shape)
-        except:
-            pass
+                if np.std(Patches[j]) == 0:
+                    if counter<5:
+                        np.save(savepath + "patches/patch_%d_%d.npy" % (i, j), Patches[j])
+                        np.save(savepath + "masks/label_%d_%d.npy" % (i, j), Y_labels[j])
+                        counter +=1
+                else:
+                    np.save(savepath + "patches/patch_%d_%d.npy" % (i, j), Patches[j])
+                    np.save(savepath + "masks/label_%d_%d.npy" % (i, j), Y_labels[j])
+                #print(Patches[j].shape)
+        except Exception as e:
+            print(e)
 
 
 
@@ -278,10 +301,11 @@ def generate_patches(val = False):
 if __name__ == '__main__':
 
     # For 240 x 240 slices
-    generate_whole_images()
+    generate_whole_images(val=False)
+    generate_whole_images(val=True)
 
     # For 128 x 128 patches
-    generate_patches()
+    #generate_patches()
 
 
 

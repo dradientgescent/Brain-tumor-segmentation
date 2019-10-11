@@ -31,18 +31,19 @@ class Unet_model_variational(object):
         i_ = GaussianNoise(0.01)(i)
 
         i_ = Conv2D(64, 2, padding='same', data_format='channels_last')(i_)
-        i_ = Dropout(rate=0.25)(i_, training=True)
-        out = self.unet(inputs=i_)
-        model = Model(input=i, output=out)
+        i_ = Dropout(rate=0.15)(i_, training=True)
+        means, var = self.unet(inputs=i_)
+        model = Model(input=i, output=[means, var])
 
-        sgd = SGD(lr=0.01, momentum=0.9, decay=5e-6, nesterov=False)
-        model.compile(loss=bayesian_loss, optimizer=sgd, metrics=[dice_whole_metric, dice_core_metric, dice_en_metric])
+        sgd = SGD(lr=0.0001, momentum=0.9, decay=5e-6, nesterov=False)
+        model.compile(loss={'means':custom_loss(var), 'variances':regularizing_loss}, optimizer=sgd, metrics={'means':\
+            [dice_whole_metric, dice_core_metric, dice_en_metric]})
         # load weights if set for prediction
         if self.load_model_weights is not None:
             model.load_weights(self.load_model_weights)
         return model
 
-    def unet(self, inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2., activation='relu', dropout=0.25,
+    def unet(self, inputs, nb_classes=4, start_ch=64, depth=3, inc_rate=2., activation='relu', dropout=0.15,
              batchnorm=True, upconv=True, format_='channels_last'):
         """
         the actual u-net architecture
@@ -51,10 +52,13 @@ class Unet_model_variational(object):
         o = BatchNormalization()(o)
         # o =  Activation('relu')(o)
         o = PReLU(shared_axes=[1, 2])(o)
-        o = Conv2D(2*nb_classes, 1, padding='same', data_format=format_)(o)
-        o = Dropout(rate=dropout)(o, training=True)
-        o = Activation('softmax')(o)
-        return o
+        m = Conv2D(nb_classes, 1, padding='same', data_format=format_)(o)
+        m = Dropout(rate=dropout)(m, training=True)
+        m = Activation('softmax', name = 'means')(m)
+        v = Conv2D(nb_classes, 1, padding='same', data_format=format_)(o)
+        v = Dropout(rate=dropout)(v, training=True)
+        v = Activation('linear', name = 'variances')(v)
+        return m, v
 
     def level_block(self, m, dim, depth, inc, acti, do, bn, up, format_="channels_last"):
         if depth > 0:
@@ -116,28 +120,33 @@ class Unet_model_variational(object):
 
         return n
 
+def custom_loss(variances):
 
-def bayesian_loss(y_true, y_pred):
+    def bayesian_loss(y_true, y_pred):
 
-    shape = K.shape(y_pred)
+        shape = K.shape(y_pred)
 
-    y_true = K.flatten(y_true)
+        y_true = K.flatten(y_true)
 
-    means = y_pred[:, :, :, :4]
-    variances = y_pred[:, :, :, 4:]
+        means = K.flatten(y_pred)
+        var = K.flatten(variances)
 
-    means = K.flatten(means)
-    variances = K.flatten(variances)
+        normalization = y_pred.shape[1]*y_pred.shape[2]
 
-    normalization = y_pred.shape[1]*y_pred.shape[2]
+        standard_loss = categorical_crossentropy(y_true, means)
 
-    standard_loss = K.square(y_true - means)
+        updated_loss = K.sum(standard_loss * 0.5 * K.exp(-var))/16384.0
 
-    updated_loss = K.sum(standard_loss * 0.5 * K.exp(-variances) + 0.5 * variances)/16384.0
+        #updated_loss = K.mean(updated_loss, axis = -1)
 
-    #updated_loss = K.mean(updated_loss, axis = -1)
+        return updated_loss
+    return bayesian_loss
 
-    return updated_loss
+def regularizing_loss(y_true, y_pred):
+
+    return K.sum(0.5 * y_pred)/16384.0
+
+
 
 def _to_tensor(x, dtype):
     """Convert the input `x` to a tensor of type `dtype`.
@@ -194,6 +203,6 @@ if __name__=='__main__':
     true = np.zeros((16, 128, 128, 4))
     pred = np.zeros((16, 128, 128, 8))
 
-    bayesian_loss(true, pred)
+    #bayesian_loss(true, pred)
 
 

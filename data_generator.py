@@ -6,13 +6,15 @@ import os
 
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, path, batch_size = 16, dim = (128, 128), channels = 4):
+    def __init__(self, path, batch_size = 16, channels = 1, seq = None):
         'Initialization'
         self.path = path
         self.batch_size = batch_size
-        self.dim = dim
         self.n_channels = channels
-
+        seq_map = {'flair': 0, 't1': 1, 't2': 3, 't1c': 2}
+        if seq not in seq_map.keys(): 
+            raise ValueError("Unknown seq given, allowed seq values: ['flair', 't1', 't2', 't1c']")
+        self.seq = seq_map[seq]
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -44,12 +46,17 @@ class DataGenerator(keras.utils.Sequence):
 
             if os.path.exists(self.path + 'patches/patch_%d_%d.npy' %(index_i, index_j)) and os.path.exists(self.path + 'masks/label_%d_%d.npy' %(index_i, index_j)):
 
+                _slice = np.load(self.path + 'patches/patch_%d_%d.npy' %(index_i, index_j))[:, :, self.seq][...,None]
+
+                _slice = _slice/np.max(_slice)
                 # Store sample
-                X.append(np.load(self.path + 'patches/patch_%d_%d.npy' %(index_i, index_j)))
+                X.append(_slice)
                 # Store class
                 y.append(np.load(self.path + 'masks/label_%d_%d.npy' %(index_i, index_j)))
 
         #print(np.array(y).shape, np.array(X).shape)
-
-        return np.array(X), np.array(y)
+        pad_val = (0, 0)
+        pad = ((0, 0), pad_val, pad_val, (0, 0))
+       
+        return np.pad(np.array(X), pad, mode='constant'), np.pad(np.array(y), pad, mode='constant')
 

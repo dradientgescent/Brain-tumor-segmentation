@@ -18,7 +18,7 @@ class Unet_model(object):
     def __init__(self,img_shape,load_model_weights=None):
         self.img_shape=img_shape
         self.load_model_weights=load_model_weights
-        self.model =self.compile_unet()
+        # self.model =self.compile_unet()
         
     
     def compile_unet(self):
